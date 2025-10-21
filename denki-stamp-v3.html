@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>電気科スタンプラリー</title>
+  <style>
+    :root {
+      --bg: #0f1222;
+      --card: #171a2e;
+      --acc: #7aa2ff;
+      --acc2: #9cf0ff;
+      --text: #e8ecff;
+      --muted: #a7b0d6;
+      --ok: #1bc47d;
+      --ring: rgba(122,162,255,.35);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(1200px 800px at 20% -10%, rgba(122,162,255,.12), transparent 40%),
+                  radial-gradient(1000px 700px at 110% 10%, rgba(156,240,255,.10), transparent 40%),
+                  var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", "Meiryo", sans-serif;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    header {
+      padding: 18px 16px 8px;
+      text-align: center;
+    }
+    header h1 {
+      margin: 0 0 6px;
+      font-size: clamp(18px, 3.8vw, 28px);
+      letter-spacing: .03em;
+    }
+    header p {
+      margin: 0;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    main {
+      max-width: 820px;
+      margin: 14px auto 48px;
+      padding: 0 14px;
+    }
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+      border: 1px solid rgba(255,255,255,.07);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 10px 24px rgba(0,0,0,.28), inset 0 0 0 1px rgba(122,162,255,.05);
+      backdrop-filter: blur(4px);
+    }
+
+    .progress {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .progress .bar {
+      --pct: 0%;
+      position: relative;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.08);
+      overflow: hidden;
+    }
+    .progress .bar::after {
+      content: "";
+      position: absolute; inset: 0;
+      width: var(--pct);
+      background: linear-gradient(90deg, var(--acc), var(--acc2));
+      box-shadow: 0 0 0 6px var(--ring) inset;
+    }
+    .progress .label {
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* 4,4 のグリッド */
+    .grid-4-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      justify-items: stretch;
+      align-items: stretch;
+    }
+
+    .slot {
+      position: relative;
+      aspect-ratio: 1 / 1;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      font-size: 18px;
+      color: var(--muted);
+      border: 1px dashed rgba(255,255,255,.18);
+      background: rgba(255,255,255,.02);
+      transition: transform .15s ease, background .2s ease, border-color .2s ease;
+    }
+    .slot.got {
+      color: #0f1a14;
+      border-style: solid;
+      border-color: rgba(27,196,125,.35);
+      background: linear-gradient(180deg, rgba(27,196,125,.95), rgba(27,196,125,.88));
+      box-shadow: 0 6px 20px rgba(27,196,125,.35);
+    }
+    .slot.got::after {
+      content: "✓";
+      position: absolute;
+      font-weight: 900;
+      font-size: 28px;
+      color: rgba(0,0,0,.25);
+      transform: translateY(14px);
+    }
+
+    .hidden { display: none !important; }
+
+    /* toast */
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%) translateY(30px);
+      opacity: 0;
+      transition: .25s ease;
+      background: rgba(0,0,0,.7);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 14px;
+      box-shadow: 0 8px 18px rgba(0,0,0,.35);
+      z-index: 999;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+    /* 地点リスト */
+    .columns {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 16px;
+    }
+    @media (max-width: 760px) {
+      .columns { grid-template-columns: 1fr; }
+    }
+    .spot-list {
+      padding: 14px;
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border: 1px solid rgba(255,255,255,.12);
+      box-shadow: inset 0 0 0 1px rgba(156,240,255,.05);
+    }
+    .spot-list h3 { margin: 0 0 8px; font-size: 16px; }
+    .spot-list ul { margin: 0; padding-left: 1.2em; }
+    .spot-list li { margin: 4px 0; }
+
+    /* 完了バナー（常時表示） */
+    .complete {
+      margin-top: 18px;
+      padding: 16px;
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(27,196,125,.18), rgba(27,196,125,.10));
+      border: 1px solid rgba(27,196,125,.45);
+      box-shadow: 0 6px 22px rgba(27,196,125,.22);
+      text-align: center;
+    }
+    .complete h2 {
+      margin: 0 0 6px;
+      font-size: clamp(22px, 5.5vw, 34px);
+      letter-spacing: .02em;
+    }
+    .complete p { margin: 0; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>電気科スタンプラリー</h1>
+    <p>QRコードをスキャンすると、スタンプが貯まります。<br>電気科に関する場所を巡って、景品をゲットしよう！</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <div class="progress">
+        <div class="bar" id="bar"></div>
+        <div class="label" id="label">0 / 8</div>
+      </div>
+
+      <!-- 4,4 配置のスタンプ枠（8個） -->
+      <div id="grid" class="grid-4-4" aria-live="polite"></div>
+
+      <!-- スタンプ地点（確定版） -->
+      <div class="columns">
+        <div class="spot-list">
+          <h3>【電気科棟】</h3>
+          <ul>
+            <li>① 1F：階段前</li>
+            <li>② 2F：制御工学実験室</li>
+            <li>③ 2F：電子工学実験室1</li>
+            <li>④ 2F：電子工学実験室2</li>
+            <li>⑤ 2F：電気計測実験室</li>
+          </ul>
+        </div>
+        <div class="spot-list">
+          <h3>【本科棟】</h3>
+          <ul>
+            <li>⑥ 本科棟2F：射的</li>
+            <li>⑦ 本科棟3F：GHOST BUSTER</li>
+          </ul>
+        </div>
+        <div class="spot-list">
+          <h3>【その他】</h3>
+          <ul>
+            <li>⑧ 屋外屋台：湯気立つ青春</li>
+            <li style="list-style:none; margin-top:6px; color: var(--muted);">※ 雨天の場合、電気科棟1Fでも展示</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- スタッフのみ：端末のスタンプを削除 -->
+      <div class="hidden" id="staffArea" style="text-align:center; margin-top:14px;">
+        <button class="slot" id="reset" style="aspect-ratio:auto; padding:10px 12px; border-style:solid;">この端末のスタンプを削除（スタッフ）</button>
+      </div>
+
+      <!-- 完了バナー（揃ったら常時表示） -->
+      <div class="hidden" id="complete" class="complete">
+        <h2>コンプリート！</h2>
+        <p>電気科棟1F：スタンプラリー受付<br>でスタッフに提示しよう！</p>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast">スタンプを獲得しました！</div>
+
+  <script>
+    (function () {
+      const params = new URLSearchParams(location.search);
+      const TOTAL = 8;
+      const STAFF_MODE = params.has("staff") || location.hash.includes("staff");
+      const STORAGE_KEY = "sr_denki_stamps_v3";
+
+      // 既存のスタンプを取得
+      let stamps = new Set();
+      try {
+        stamps = new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"));
+      } catch (e) {
+        localStorage.removeItem(STORAGE_KEY);
+        stamps = new Set();
+      }
+
+      const beforeCount = stamps.size;
+
+      // 取得処理
+      const point = params.get("point");
+      let acquired = false;
+      if (point && /^[a-zA-Z0-9_-]{1,16}$/.test(point)) {
+        if (!stamps.has(point)) {
+          stamps.add(point);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify([...stamps]));
+          acquired = true;
+        }
+      }
+
+      // 要素
+      const label = document.getElementById("label");
+      const bar = document.getElementById("bar");
+      const grid = document.getElementById("grid");
+      const toast = document.getElementById("toast");
+      const resetBtn = document.getElementById("reset");
+      const complete = document.getElementById("complete");
+      const staffArea = document.getElementById("staffArea");
+
+      function updateProgress() {
+        const count = stamps.size;
+        const pct = Math.min(100, Math.round((count / TOTAL) * 100));
+        label.textContent = `${count} / ${TOTAL}`;
+        bar.style.setProperty("--pct", pct + "%");
+        // 揃っているなら常時表示
+        if (count >= TOTAL) {
+          complete.classList.remove("hidden");
+          complete.classList.add("complete");
+        } else {
+          complete.classList.add("hidden");
+          complete.classList.remove("complete");
+        }
+      }
+
+      // 4,4 レイアウトの描画（8個）
+      function renderGrid() {
+        grid.innerHTML = "";
+        for (let i = 1; i <= TOTAL; i++) {
+          grid.appendChild(makeSlot(String(i)));
+        }
+      }
+
+      function makeSlot(id) {
+        const div = document.createElement("div");
+        const got = stamps.has(id);
+        div.className = "slot" + (got ? " got" : "");
+        div.textContent = got ? "" : id; // 枠番号表示
+        return div;
+      }
+
+      // トースト（増えた時のみ）
+      function showToast(msg = "スタンプを獲得しました！") {
+        toast.textContent = msg;
+        toast.classList.add("show");
+        setTimeout(() => toast.classList.remove("show"), 1800);
+      }
+
+      if (STAFF_MODE) {
+        staffArea.classList.remove("hidden");
+        resetBtn.addEventListener("click", () => {
+          if (confirm("この端末のスタンプをすべて削除します。よろしいですか？")) {
+            localStorage.removeItem(STORAGE_KEY);
+            stamps = new Set();
+            renderGrid();
+            updateProgress();
+            showToast("リセットしました");
+          }
+        });
+      }
+
+      renderGrid();
+      updateProgress();
+      // もともとの個数より増えた時だけトースト
+      if (stamps.size > beforeCount && acquired) showToast();
+    })();
+  </script>
+</body>
+</html>
