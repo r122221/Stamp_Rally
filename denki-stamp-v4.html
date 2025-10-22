@@ -82,11 +82,7 @@
       font-variant-numeric: tabular-nums;
     }
 
-    /* 4,4 のグリッド */
-    .grid-wrap {
-      position: relative;
-      margin-bottom: 10px;
-    }
+    .grid-wrap { position: relative; margin-top: 6px; }
     .grid-4-4 {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -124,50 +120,61 @@
       transform: translateY(14px);
     }
 
-    .hidden { display: none !important; }
-
-    /* 透かしのコンプリートオーバーレイ */
-    .overlay-complete {
+    .overlay {
+      pointer-events: none;
       position: absolute;
       inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      padding: 10px;
-      pointer-events: none;
-      z-index: 10;
+      display: grid;
+      place-items: center;
+      opacity: 0;
+      transform: translateY(6px) scale(.98);
+      transition: opacity .25s ease, transform .25s ease;
     }
-    .overlay-complete .bubble {
-      background: rgba(27,196,125,.16);
-      border: 1px solid rgba(27,196,125,.45);
-      box-shadow: 0 6px 22px rgba(27,196,125,.22);
+    .overlay.active { opacity: 1; transform: translateY(0) scale(1); }
+    .overlay .panel {
       backdrop-filter: blur(4px);
       -webkit-backdrop-filter: blur(4px);
+      background: rgba(20, 30, 50, .55);
+      border: 1px solid rgba(255,255,255,.18);
+      box-shadow: 0 12px 36px rgba(0,0,0,.35), inset 0 0 0 1px rgba(156,240,255,.08);
       border-radius: 18px;
       padding: 16px 18px;
+      text-align: center;
       max-width: 92%;
     }
-    .overlay-complete h2 {
-      margin: 0 0 6px;
-      font-size: clamp(22px, 5.5vw, 34px);
+    .overlay .panel h2 {
+      margin: 0 0 8px;
+      font-size: clamp(22px, 6vw, 36px);
       letter-spacing: .02em;
+      color: #eafff3;
+      text-shadow: 0 1px 0 rgba(0,0,0,.45);
     }
-    .overlay-complete p {
-      margin: 0;
-      font-size: 14px;
-    }
+    .overlay .panel p { margin: 0; font-size: 14px; color: #d9ffe8; }
 
-    /* 地点リスト */
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%) translateY(30px);
+      opacity: 0;
+      transition: .25s ease;
+      background: rgba(0,0,0,.7);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 14px;
+      box-shadow: 0 8px 18px rgba(0,0,0,.35);
+      z-index: 999;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
     .columns {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 12px;
       margin-top: 16px;
     }
-    @media (max-width: 760px) {
-      .columns { grid-template-columns: 1fr; }
-    }
+    @media (max-width: 760px) { .columns { grid-template-columns: 1fr; } }
     .spot-list {
       padding: 14px;
       border-radius: 14px;
@@ -178,6 +185,8 @@
     .spot-list h3 { margin: 0 0 8px; font-size: 16px; }
     .spot-list ul { margin: 0; padding-left: 1.2em; }
     .spot-list li { margin: 4px 0; }
+
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
@@ -193,19 +202,16 @@
         <div class="label" id="label">0 / 8</div>
       </div>
 
-      <!-- スタンプ枠（4x4） + オーバーレイ -->
       <div class="grid-wrap">
         <div id="grid" class="grid-4-4" aria-live="polite"></div>
-
-        <div id="completeOverlay" class="overlay-complete hidden" aria-hidden="true">
-          <div class="bubble">
+        <div id="overlay" class="overlay hidden">
+          <div class="panel">
             <h2>コンプリート！</h2>
             <p>電気科棟1F：スタンプラリー受付<br>でスタッフに提示しよう！</p>
           </div>
         </div>
       </div>
 
-      <!-- スタンプ地点（確定版） -->
       <div class="columns">
         <div class="spot-list">
           <h3>【電気科棟】</h3>
@@ -233,7 +239,6 @@
         </div>
       </div>
 
-      <!-- スタッフのみ：端末のスタンプを削除 -->
       <div class="hidden" id="staffArea" style="text-align:center; margin-top:14px;">
         <button class="slot" id="reset" style="aspect-ratio:auto; padding:10px 12px; border-style:solid;">この端末のスタンプを削除（スタッフ）</button>
       </div>
@@ -249,18 +254,12 @@
       const STAFF_MODE = params.has("staff") || location.hash.includes("staff");
       const STORAGE_KEY = "sr_denki_stamps_v4";
 
-      // 既存のスタンプを取得
       let stamps = new Set();
-      try {
-        stamps = new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"));
-      } catch (e) {
-        localStorage.removeItem(STORAGE_KEY);
-        stamps = new Set();
-      }
+      try { stamps = new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")); }
+      catch (e) { localStorage.removeItem(STORAGE_KEY); stamps = new Set(); }
 
       const beforeCount = stamps.size;
 
-      // 取得処理
       const point = params.get("point");
       let acquired = false;
       if (point && /^[a-zA-Z0-9_-]{1,16}$/.test(point)) {
@@ -271,47 +270,40 @@
         }
       }
 
-      // 要素
       const label = document.getElementById("label");
       const bar = document.getElementById("bar");
       const grid = document.getElementById("grid");
       const toast = document.getElementById("toast");
       const resetBtn = document.getElementById("reset");
       const staffArea = document.getElementById("staffArea");
-      const completeOverlay = document.getElementById("completeOverlay");
+      const overlay = document.getElementById("overlay");
 
       function updateProgress() {
         const count = stamps.size;
         const pct = Math.min(100, Math.round((count / TOTAL) * 100));
         label.textContent = `${count} / ${TOTAL}`;
         bar.style.setProperty("--pct", pct + "%");
-        // オーバーレイの表示切り替え（常時上に乗せる）
         if (count >= TOTAL) {
-          completeOverlay.classList.remove("hidden");
-          completeOverlay.setAttribute("aria-hidden", "false");
+          overlay.classList.remove("hidden");
+          requestAnimationFrame(() => overlay.classList.add("active"));
         } else {
-          completeOverlay.classList.add("hidden");
-          completeOverlay.setAttribute("aria-hidden", "true");
+          overlay.classList.remove("active");
+          overlay.classList.add("hidden");
         }
       }
 
-      // 4,4 レイアウトの描画（8個）
       function renderGrid() {
         grid.innerHTML = "";
-        for (let i = 1; i <= TOTAL; i++) {
-          grid.appendChild(makeSlot(String(i)));
-        }
+        for (let i = 1; i <= TOTAL; i++) grid.appendChild(makeSlot(String(i)));
       }
-
       function makeSlot(id) {
         const div = document.createElement("div");
         const got = stamps.has(id);
         div.className = "slot" + (got ? " got" : "");
-        div.textContent = got ? "" : id; // 枠番号表示
+        div.textContent = got ? "" : id;
         return div;
       }
 
-      // トースト（増えた時のみ）
       function showToast(msg = "スタンプを獲得しました！") {
         toast.textContent = msg;
         toast.classList.add("show");
@@ -320,12 +312,11 @@
 
       if (STAFF_MODE) {
         staffArea.classList.remove("hidden");
-        resetBtn.addEventListener("click", () => {
+        resetBtn && resetBtn.addEventListener("click", () => {
           if (confirm("この端末のスタンプをすべて削除します。よろしいですか？")) {
             localStorage.removeItem(STORAGE_KEY);
             stamps = new Set();
-            renderGrid();
-            updateProgress();
+            renderGrid(); updateProgress();
             showToast("リセットしました");
           }
         });
@@ -333,7 +324,6 @@
 
       renderGrid();
       updateProgress();
-      // もともとの個数より増えた時だけトースト
       if (stamps.size > beforeCount && acquired) showToast();
     })();
   </script>
